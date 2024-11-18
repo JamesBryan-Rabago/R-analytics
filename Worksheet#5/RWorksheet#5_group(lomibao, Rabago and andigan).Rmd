@@ -1,0 +1,59 @@
+---
+title: "RWorksheet#5_group(Lomibao,rabago and andigan)"
+output: pdf_document
+date: "2024-11-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("rvest")
+library("polite")
+library("dplyr")
+
+url <- "https://www.imdb.com/chart/toptv/"
+  
+ session <- bow(url, 
+                 user_agent = "Student education purpose")
+ session
+ page <- scrape(session)  
+```
+scraping the title 
+```{r}
+ title <- page%>%html_nodes('h3.ipc-title__text')%>%html_text()
+ title
+```
+
+```{r}
+title_list <- as.data.frame(title[1:50])
+colnames(title_list)<-"ranks"
+
+```
+spliting the data frame 
+```{r}
+split_df <- strsplit(as.character(title_list$ranks),".",fixed = TRUE)
+split_df<- data.frame(do.call(rbind,split_df))
+split_df
+```
+renaming columns
+```{r}
+split_df<-split_df[-c(3,4)]
+colnames(split_df)<- c("Ranks","Titles")
+split_df
+```
+creating csv
+```{r}
+rank_title <- data.frame(
+  rank_title = split_df)
+
+write.csv(rank_title,file = "title.csv")
+
+```
+scraping the link 
+```{r}
+link_list <- page %>% html_nodes('a.ipc-title-link') %>% html_attr('href')
+link_list
+```
+
