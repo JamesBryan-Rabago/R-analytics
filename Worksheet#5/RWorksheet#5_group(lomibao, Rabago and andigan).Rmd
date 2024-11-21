@@ -9,10 +9,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library(kableExtra)
 library("rvest")
 library("polite")
 library("dplyr")
 
+
+polite::use_manners(save_as = 'polite_scrape.R')
+  
 url <- "https://www.imdb.com/chart/toptv/"
   
  session <- bow(url, 
@@ -24,6 +28,41 @@ scraping the title
 ```{r}
  title <- page%>%html_nodes('h3.ipc-title__text')%>%html_text()
  title
+```
+scraping the rating 
+```{r}
+ratings <- page %>% 
+  html_nodes("span.ipc-rating-star--rating") %>%
+  html_text()
+ratings
+```
+scraping the numbers of vote 
+```{r}
+number_votes <- page %>%
+  html_nodes("span.ipc-rating-star--voteCount") %>%
+  html_text()
+number_votes
+```
+scraping the number of episode 
+```{r}
+num_ep <- page %>%
+  html_nodes("span.sc-5bc66c50-6.OOdsw.cli-title-metadata-item") %>%
+  html_text()
+num_ep
+```
+Cleaning the episode data 
+```{r}
+# episode_counts <- str_extract(num_ep, "\\d+ eps")
+# episode_counts <- str_remove(episode_counts, " eps")
+# episode_counts <- as.numeric(episode_counts)
+# episode_counts
+```
+scraping the year 
+```{r}
+year <- page %>%
+  html_nodes("span.sc-5bc66c50-6.OOdsw.cli-title-metadata-item") %>%
+  html_text()
+
 ```
 
 ```{r}
@@ -51,9 +90,5 @@ rank_title <- data.frame(
 write.csv(rank_title,file = "title.csv")
 
 ```
-scraping the link 
-```{r}
-link_list <- page %>% html_nodes('a.ipc-title-link') %>% html_attr('href')
-link_list
-```
+
 
