@@ -32,8 +32,8 @@ scraping the title
 ```
 scraping the rating 
 ```{r}
-ratings <- page %>% 
-  html_nodes("span.ipc-rating-star--rating") %>%
+ratings<- page %>% 
+  html_nodes('span.ipc-rating-star--rating') %>%
   html_text()
 ratings
 ```
@@ -46,8 +46,8 @@ number_votes
 ```
 scraping the number of episode 
 ```{r}
-num_ep <- scrape(session) %>%
-  html_nodes("span.sc-5bc66c50-6.OOdsw")%>%
+num_ep <- page %>%
+  html_nodes('span.sc-6-ade9358-7.exckou.cli-title-metadata-item')%>%
   html_text()
 num_ep
 ```
@@ -56,7 +56,7 @@ Cleaning the episode data
 # episode <- str_extract(num_ep, "\\d+ eps")
 #  episodes <- str_remove(episode, " eps")
 # episodes <- as.numeric(episodes)
- # episodes
+# episodes
 
 ```
 scraping the year release
@@ -117,6 +117,42 @@ Combining them all to a data frame.
  # Release_Year = release_years,
   #stringsAsFactors = FALSE
  # )
+```
+
+R scraping 
+```{r}
+library('rvest')
+library('polite')
+
+polite::use_manners(save_as = 'polite_scrape.R')
+
+urlr <- "https://www.amazon.com/?&tag=phtxtabkgode-20&ref=pd_sl_73t48p1dlf_e&adgrpid=151590336221&hvpone=&hvptwo=&hvadid=677569135158&hvpos=&hvnetw=g&hvrand=5376280395188430893&hvqmt=e&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9067222&hvtargid=kwd-10573980&hydadcr=9911_13618523&language=en_US"
+
+session2 <- bow(urlr,
+               user_agent = "Student's Demo Educational")
+session2
+
+page2 <- scrape(session2)
+```
+Creating a empty vector.
+
+```{r}
+links <- character()
+img_srcs <- character()
+titles <- character()
+prices <- character()
+ratings <- character()
+
+```
+
+
+url for categories
+```{r}
+shirt_cat<- "https://www.amazon.com/s?k=shirt&i=fashion-mens-intl-ship&crid=6IQRNOUUJ0LB&sprefix=shirt%2Cfashion-mens-intl-ship%2C375&ref=nb_sb_noss_2"
+pants_cat <- "https://www.amazon.com/s?k=pants&i=fashion-mens-intl-ship&crid=9U0VNEZTF2CR&sprefix=pants%2Cfashion-mens-intl-ship%2C309&ref=nb_sb_noss_2"
+shoe_cat<- "https://www.amazon.com/s?k=shoes&i=fashion-mens-intl-ship&crid=ADB2HOWLHCPK&sprefix=sho%2Cfashion-mens-intl-ship%2C356&ref=nb_sb_noss_2"
+head_phone <-"https://www.amazon.com/s?k=headphone&i=fashion-mens-intl-ship&crid=25P9FL9QS4YNZ&sprefix=headphone%2Cfashion-mens-intl-ship%2C299&ref=nb_sb_noss_2"
+medkit_cat<-"https://www.amazon.com/s?k=medkit&i=fashion-mens-intl-ship&crid=1HF7OZ2EVLHQY&sprefix=medkit%2Cfashion-mens-intl-ship%2C286&ref=nb_sb_noss_2"
 ```
 
 
