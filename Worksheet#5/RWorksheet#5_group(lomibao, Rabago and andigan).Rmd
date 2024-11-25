@@ -18,7 +18,7 @@ library("dplyr")
 polite::use_manners(save_as = 'polite_scrape.R')
   
 url <- "https://www.imdb.com/chart/toptv/"
-  
+webpage <- read_html(url)  
  session <- bow(url, 
                  user_agent = "Student education purpose")
  session
@@ -27,6 +27,7 @@ url <- "https://www.imdb.com/chart/toptv/"
 scraping the title 
 ```{r}
  title <- page%>%html_nodes('h3.ipc-title__text')%>%html_text()
+ title <- title[2:26]
  title
 ```
 scraping the rating 
@@ -45,24 +46,40 @@ number_votes
 ```
 scraping the number of episode 
 ```{r}
-num_ep <- page %>%
-  html_nodes("span.sc-5bc66c50-6.OOdsw.cli-title-metadata-item") %>%
+num_ep <- scrape(session) %>%
+  html_nodes("span.sc-5bc66c50-6.OOdsw")%>%
   html_text()
 num_ep
 ```
 Cleaning the episode data 
 ```{r}
-# episode_counts <- str_extract(num_ep, "\\d+ eps")
-# episode_counts <- str_remove(episode_counts, " eps")
-# episode_counts <- as.numeric(episode_counts)
-# episode_counts
+# episode <- str_extract(num_ep, "\\d+ eps")
+#  episodes <- str_remove(episode, " eps")
+# episodes <- as.numeric(episodes)
+ # episodes
+
 ```
-scraping the year 
+scraping the year release
 ```{r}
 year <- page %>%
   html_nodes("span.sc-5bc66c50-6.OOdsw.cli-title-metadata-item") %>%
   html_text()
+year
+```
+Extract using the regex 
+```{r}
+ #release_years <- str_extract(year, "\\d{4}")
+ #release_years <- release_years[!is.na(release_years)]  
+ #release_years <- as.numeric(release_years)
 
+```
+checking the length. 
+```{r}
+#cat("Show Titles length: ", length(title), "\n")
+#cat("Show Ratings length: ", length(ratings), "\n")
+#cat("Number of Votes length: ", length(number_votes), "\n")
+#cat("Episode Counts length: ", length(episodes), "\n")
+#cat("Release Years length: ", length(release_years), "\n")
 ```
 
 ```{r}
@@ -82,13 +99,24 @@ split_df<-split_df[-c(3,4)]
 colnames(split_df)<- c("Ranks","Titles")
 split_df
 ```
-creating csv
+creating csv for title and ranks 
 ```{r}
 rank_title <- data.frame(
   rank_title = split_df)
 
 write.csv(rank_title,file = "title.csv")
 
+```
+Combining them all to a data frame. 
+```{r}
+ # imdb_top_tv_shows <- data.frame(
+ # Title = title,
+ # Rating = ratings,
+ # Votes = number_votes,
+ # Episode = episodes,
+ # Release_Year = release_years,
+  #stringsAsFactors = FALSE
+ # )
 ```
 
 
