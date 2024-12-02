@@ -1,0 +1,35 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+R scraping and bow process in the amazon for the data gathering. 
+```{r}
+library('rvest')
+library('polite')
+
+polite::use_manners(save_as = 'polite_scrape.R')
+
+urlr <- "https://www.amazon.com/"
+
+amazon <- read_html(urlr)
+session2 <- bow(urlr,
+               user_agent = "Student's Demo Educational")
+session2
+
+page2 <- scrape(session2)
+num_products = 31
+```
+creating a empty data frame for store the data later.
+```{r}
+data <- data.frame()
+```
+url for categories
+```{r}
+shirt_cat<- "https://www.amazon.com/s?k=shirt&i=fashion-mens-intl-ship&crid=6IQRNOUUJ0LB&sprefix=shirt%2Cfashion-mens-intl-ship%2C375&ref=nb_sb_noss_2"
+pants_cat <- "https://www.amazon.com/s?k=pants&i=fashion-mens-intl-ship&crid=9U0VNEZTF2CR&sprefix=pants%2Cfashion-mens-intl-ship%2C309&ref=nb_sb_noss_2"
+shoe_cat<- "https://www.amazon.com/s?k=shoes&i=fashion-mens-intl-ship&crid=ADB2HOWLHCPK&sprefix=sho%2Cfashion-mens-intl-ship%2C356&ref=nb_sb_noss_2"
+head_phone <-"https://www.amazon.com/s?k=headphone&i=fashion-mens-intl-ship&crid=25P9FL9QS4YNZ&sprefix=headphone%2Cfashion-mens-intl-ship%2C299&ref=nb_sb_noss_2"
+medkit_cat<-"https://www.amazon.com/s?k=medkit&i=fashion-mens-intl-ship&crid=1HF7OZ2EVLHQY&sprefix=medkit%2Cfashion-mens-intl-ship%2C286&ref=nb_sb_noss_2"
+```
+

@@ -30,7 +30,26 @@ scraping the title
  title <- title[2:26]
  title
 ```
-scraping the rating 
+
+```{r}
+title_list <- as.data.frame(title[1:50])
+colnames(title_list)<-"ranks"
+
+```
+spliting the data frame
+```{r}
+split_df <- strsplit(as.character(title_list$ranks),".",fixed = TRUE)
+split_df<- data.frame(do.call(rbind,split_df))
+split_df
+```
+renaming the columns
+```{r}
+
+split_df<-split_df[-c(3,4)]
+colnames(split_df)<- c("Ranks","Titles")
+split_df
+```
+scraping the star- rating 
 ```{r}
 ratings<- page %>% 
   html_nodes('span.ipc-rating-star--rating') %>%
@@ -47,115 +66,60 @@ number_votes
 scraping the number of episode 
 ```{r}
 num_ep <- page %>%
-  html_nodes('span.sc-6-ade9358-7.exckou.cli-title-metadata-item')%>%
+  html_nodes("span.ipc-title__subtext")%>%
   html_text()
-num_ep
-```
-Cleaning the episode data 
-```{r}
-# episode <- str_extract(num_ep, "\\d+ eps")
-#  episodes <- str_remove(episode, " eps")
-# episodes <- as.numeric(episodes)
-# episodes
+num_ep <- as.data.frame(num_ep[1:25])
+colnames(num_ep) <- "episode"
 
 ```
 scraping the year release
 ```{r}
-year <- page %>%
-  html_nodes("span.sc-5bc66c50-6.OOdsw.cli-title-metadata-item") %>%
+year <- scrape(session) %>%
+  html_nodes("span.sc-300a8231-7 eaXxft cli-title-metadata-item") %>%
   html_text()
 year
+year <- as.data.frame(year[1:25])
+colnames(year)<- "year"
 ```
-Extract using the regex 
+creating csv file for every one of the data. 
 ```{r}
- #release_years <- str_extract(year, "\\d{4}")
- #release_years <- release_years[!is.na(release_years)]  
- #release_years <- as.numeric(release_years)
+#title and ranks 
+rank_title <- data.frame(
+  rank_title = split_df)
+write.csv(rank_title,file = "title.csv")
+#ranting 
+write.csv(rating,file = "star_rating.csv")
+#vote count 
+write.csv(number_votes,file = "vote_count.csv")
+#year
+ # write.csv(year = "released_year.csv")
+#number of episode 
+# write.csv(num_ep = "number_episode.csv")
 
 ```
 checking the length. 
 ```{r}
-#cat("Show Titles length: ", length(title), "\n")
-#cat("Show Ratings length: ", length(ratings), "\n")
-#cat("Number of Votes length: ", length(number_votes), "\n")
-#cat("Episode Counts length: ", length(episodes), "\n")
-#cat("Release Years length: ", length(release_years), "\n")
+cat("Show Titles length: ", length(title), "\n")
+cat("Show Ratings length: ", length(ratings), "\n")
+cat("Number of Votes length: ", length(number_votes), "\n")
+cat("Episode Counts length: ", length(episodes), "\n")
+cat("Release Years length: ", length(release_years), "\n")
 ```
 
 ```{r}
-title_list <- as.data.frame(title[1:50])
-colnames(title_list)<-"ranks"
-
-```
-spliting the data frame 
-```{r}
-split_df <- strsplit(as.character(title_list$ranks),".",fixed = TRUE)
-split_df<- data.frame(do.call(rbind,split_df))
-split_df
-```
-renaming columns
-```{r}
-split_df<-split_df[-c(3,4)]
-colnames(split_df)<- c("Ranks","Titles")
-split_df
-```
-creating csv for title and ranks 
-```{r}
-rank_title <- data.frame(
-  rank_title = split_df)
-
-write.csv(rank_title,file = "title.csv")
 
 ```
 Combining them all to a data frame. 
 ```{r}
- # imdb_top_tv_shows <- data.frame(
- # Title = title,
- # Rating = ratings,
- # Votes = number_votes,
+  imdb_top_tv_shows <- data.frame(
+  Title = rank_title,
+  Rating = ratings,
+  Votes = number_votes,
  # Episode = episodes,
  # Release_Year = release_years,
-  #stringsAsFactors = FALSE
- # )
-```
-
-R scraping 
-```{r}
-library('rvest')
-library('polite')
-
-polite::use_manners(save_as = 'polite_scrape.R')
-
-urlr <- "https://www.amazon.com/?&tag=phtxtabkgode-20&ref=pd_sl_73t48p1dlf_e&adgrpid=151590336221&hvpone=&hvptwo=&hvadid=677569135158&hvpos=&hvnetw=g&hvrand=5376280395188430893&hvqmt=e&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9067222&hvtargid=kwd-10573980&hydadcr=9911_13618523&language=en_US"
-
-amazon <- read_html(urlr)
-session2 <- bow(urlr,
-               user_agent = "Student's Demo Educational")
-session2
-
-page2 <- scrape(session2)
-num_products = 31
-```
-Creating a data frame for storing the data.
-
-```{r}
-data <- data.frame()
-```
-loop for link 
-```{r}
-
-  
+  stringsAsFactors = FALSE
+  )
+imdb_top_tv_shows
 
 ```
-
-
-url for categories
-```{r}
-shirt_cat<- "https://www.amazon.com/s?k=shirt&i=fashion-mens-intl-ship&crid=6IQRNOUUJ0LB&sprefix=shirt%2Cfashion-mens-intl-ship%2C375&ref=nb_sb_noss_2"
-pants_cat <- "https://www.amazon.com/s?k=pants&i=fashion-mens-intl-ship&crid=9U0VNEZTF2CR&sprefix=pants%2Cfashion-mens-intl-ship%2C309&ref=nb_sb_noss_2"
-shoe_cat<- "https://www.amazon.com/s?k=shoes&i=fashion-mens-intl-ship&crid=ADB2HOWLHCPK&sprefix=sho%2Cfashion-mens-intl-ship%2C356&ref=nb_sb_noss_2"
-head_phone <-"https://www.amazon.com/s?k=headphone&i=fashion-mens-intl-ship&crid=25P9FL9QS4YNZ&sprefix=headphone%2Cfashion-mens-intl-ship%2C299&ref=nb_sb_noss_2"
-medkit_cat<-"https://www.amazon.com/s?k=medkit&i=fashion-mens-intl-ship&crid=1HF7OZ2EVLHQY&sprefix=medkit%2Cfashion-mens-intl-ship%2C286&ref=nb_sb_noss_2"
-```
-
 
