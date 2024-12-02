@@ -7,17 +7,17 @@ date: "2024-11-18"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
+bow and load the necesssary packages
 ```{r}
 library(kableExtra)
 library("rvest")
 library("polite")
 library("dplyr")
-
+library("stringr")
 
 polite::use_manners(save_as = 'polite_scrape.R')
   
-url <- "https://www.imdb.com/chart/toptv/"
+url <- "https://www.imdb.com/chart/toptv/?ref_=nv_tvv_250v"
 webpage <- read_html(url)  
  session <- bow(url, 
                  user_agent = "Student education purpose")
@@ -26,7 +26,7 @@ webpage <- read_html(url)
 ```
 scraping the title 
 ```{r}
- title <- page%>%html_nodes('h3.ipc-title__text')%>%html_text()
+ title <- webpage%>%html_nodes('h3.ipc-title__text')%>%html_text()
  title <- title[2:26]
  title
 ```
@@ -49,52 +49,65 @@ split_df<-split_df[-c(3,4)]
 colnames(split_df)<- c("Ranks","Titles")
 split_df
 ```
-scraping the star- rating 
+scraping the star- rating and saving in the data frame
 ```{r}
-ratings<- page %>% 
+ratings<- webpage %>% 
   html_nodes('span.ipc-rating-star--rating') %>%
   html_text()
-ratings
+ratings <- as.data.frame(ratings)
 ```
 scraping the numbers of vote 
 ```{r}
-number_votes <- page %>%
+number_votes <- webpage %>%
   html_nodes("span.ipc-rating-star--voteCount") %>%
   html_text()
-number_votes
+number_votes <- as.data.frame(number_votes)
 ```
 scraping the number of episode 
 ```{r}
-num_ep <- page %>%
-  html_nodes("span.ipc-title__subtext")%>%
+num_ep <- webpage %>%
+  html_nodes('span.sc-300a8231-7.eaXxft.cli-title-metadata-item:nth-of-type(2)')%>%
   html_text()
-num_ep <- as.data.frame(num_ep[1:25])
-colnames(num_ep) <- "episode"
-
+num_ep
+```
+cleanig the episode data.
+```{r}
+episode_counts <- str_extract(num_ep, "\\d+ eps")
+number_episode <- str_remove(episode_counts, " eps")
+number_episode <- as.data.frame(number_episode)
+colnames(number_episode) <- "Episode"
+number_episode
 ```
 scraping the year release
 ```{r}
-year <- scrape(session) %>%
-  html_nodes("span.sc-300a8231-7 eaXxft cli-title-metadata-item") %>%
-  html_text()
+year <- webpage %>%
+  html_nodes('span.sc-300a8231-7.eaXxft.cli-title-metadata-item') %>%html_text()
 year
-year <- as.data.frame(year[1:25])
-colnames(year)<- "year"
+```
+Exracting using the regex. 
+```{r}
+release_years <- str_extract(year, "\\d{4}")
+release_years <- release_years[!is.na(release_years)]  # Remove NA values
+release_years <- as.numeric(release_years)
+relyear <- as.data.frame(release_years)
+colnames(relyear) <-"Year"
+relyear
+
 ```
 creating csv file for every one of the data. 
 ```{r}
 #title and ranks 
-rank_title <- data.frame(
-  rank_title = split_df)
-write.csv(rank_title,file = "title.csv")
+#rank_title <- data.frame(
+ # rank_title = split_df)
+#write.csv(rank_title,file = "title.csv")
 #ranting 
-write.csv(rating,file = "star_rating.csv")
+#write.csv(rating,file = "star_rating.csv")
 #vote count 
-write.csv(number_votes,file = "vote_count.csv")
+ #write.csv(number_votes,file = "vote_count.csv")
 #year
- # write.csv(year = "released_year.csv")
+ # write.csv(relyear = "year.csv")
 #number of episode 
-# write.csv(num_ep = "number_episode.csv")
+ #write.csv(number_episode = "number_episode.csv")
 
 ```
 checking the length. 
@@ -102,7 +115,7 @@ checking the length.
 cat("Show Titles length: ", length(title), "\n")
 cat("Show Ratings length: ", length(ratings), "\n")
 cat("Number of Votes length: ", length(number_votes), "\n")
-cat("Episode Counts length: ", length(episodes), "\n")
+cat("Episode Counts length: ", length(number_episode), "\n")
 cat("Release Years length: ", length(release_years), "\n")
 ```
 
@@ -111,15 +124,15 @@ cat("Release Years length: ", length(release_years), "\n")
 ```
 Combining them all to a data frame. 
 ```{r}
-  imdb_top_tv_shows <- data.frame(
-  Title = rank_title,
-  Rating = ratings,
-  Votes = number_votes,
+ # imdb_top_tv_shows <- data.frame(
+ # Title = rank_title,
+#  Rating = ratings,
+#  Votes = number_votes,
  # Episode = episodes,
  # Release_Year = release_years,
-  stringsAsFactors = FALSE
-  )
-imdb_top_tv_shows
+  #stringsAsFactors = FALSE
+ # )
+#imdb_top_tv_shows
 
 ```
 
