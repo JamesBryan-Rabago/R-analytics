@@ -89,50 +89,238 @@ Exracting using the regex.
 release_years <- str_extract(year, "\\d{4}")
 release_years <- release_years[!is.na(release_years)]  # Remove NA values
 release_years <- as.numeric(release_years)
-relyear <- as.data.frame(release_years)
-colnames(relyear) <-"Year"
-relyear
+release_years <- as.data.frame(release_years)
+release_years
 
 ```
 creating csv file for every one of the data. 
 ```{r}
-#title and ranks 
-#rank_title <- data.frame(
- # rank_title = split_df)
-#write.csv(rank_title,file = "title.csv")
-#ranting 
+#titles
+#write.csv(title_list,file = "title.csv")
+#rating 
 #write.csv(rating,file = "star_rating.csv")
 #vote count 
  #write.csv(number_votes,file = "vote_count.csv")
 #year
- # write.csv(relyear = "year.csv")
+  #write.csv(release_years,file = "year.csv")
 #number of episode 
- #write.csv(number_episode = "number_episode.csv")
+ #write.csv(number_episode,file = "number_episode.csv")
+# maam all code is running and correct i just comment it out because of knitting error
 
 ```
-checking the length. 
+creating a function for scraping the critic  reviews 
 ```{r}
-cat("Show Titles length: ", length(title), "\n")
-cat("Show Ratings length: ", length(ratings), "\n")
-cat("Number of Votes length: ", length(number_votes), "\n")
-cat("Episode Counts length: ", length(number_episode), "\n")
-cat("Release Years length: ", length(release_years), "\n")
+get_critic_reviews <- function(link) {
+  complete_link <- paste0("https://imdb.com", link)
+  show_page <- read_html(complete_link)
+  
+  # Extract critic reviews
+  critic <- show_page %>%
+    html_nodes("span.score") %>%  # Adjust this if necessary based on page structure
+    html_text()
+  
+  # Return the second critic review (if available)
+  if (length(critic) > 1) {
+    return(critic[2])  # Take the second item for the critic score
+  } else {
+    return(NA)  # If no critic review is found
+  }
+}
 ```
-
+ Creating a fuction  to scrape popularity rating for each show
 ```{r}
+get_popularity_rating <- function(link) {
+  complete_link <- paste0("https://imdb.com", link)
+  show_page <- read_html(complete_link)
+  
+  # Extract popularity rating
+  pop_rating <- show_page %>%
+    html_nodes('[data-testid="hero-rating-bar__popularity__score"]') %>%
+    html_text()
+  
+  # Return the popularity rating (if available)
+  if (length(pop_rating) > 1) {
+    return(pop_rating[2])  # The second item should be the popularity rating
+  } else {
+    return(NA)  # If no popularity rating is found
+  }
+}
+```
+Extracting the links of each shows.
+```{r}
+links <- webpage %>%
+  html_nodes("a.ipc-title-link-wrapper") %>%
+  html_attr("href")
 
 ```
-Combining them all to a data frame. 
+scrape the links for each critic reviews using the function that u make and using the loop (Sapply)
 ```{r}
- # imdb_top_tv_shows <- data.frame(
- # Title = rank_title,
-#  Rating = ratings,
-#  Votes = number_votes,
- # Episode = episodes,
- # Release_Year = release_years,
-  #stringsAsFactors = FALSE
- # )
-#imdb_top_tv_shows
+ critic_reviews <- sapply(links, get_critic_reviews)
 
+```
+Do the same at the popularity ratings. 
+```{r}
+popularity_ratings <- sapply(links, get_popularity_rating)
+```
+Checking if they same length before combining the into a data frame or into a csv file.
+```{r}
+max_length <- max(length(title_list), length(ratings), length(number_votes), length(number_episode), length(release_years), length(critic_reviews), length(pop_ratings))
+rank_title <- rep(title_list, length.out = max_length)
+ratings <- rep(ratings, length.out = max_length)
+number_votes <- rep(number_votes, length.out = max_length)
+number_episode <- rep(number_episode, length.out = max_length)
+release_years <- rep(release_years, length.out = max_length)
+critic_reviews <- rep(critic_reviews, length.out = max_length)
+popularity_ratings <- rep(popularity_ratings, length.out = max_length)
+
+
+
+```
+Combining them into a data frame.
+```{r}
+imdb_top_tv_shows <- data.frame(
+  Title = title_list,
+  Rating = ratings,
+  Votes = number_votes,
+  Episode = number_episode,
+  Release_Year = release_years,
+  ritic_Reviews = critic_reviews,
+  Popularity_Rating = popularity_ratings,
+  stringsAsFactors = FALSE
+)
+
+top_50_shows <- imdb_top_tv_shows %>%
+  slice(1:50)  # Get the top 50 shows
+
+print(top_50_shows)
+```
+Save as csv file.
+```{r}
+write.csv(top_50_shows, "Top_50_shows.csv")
+```
+load the necessary packages. 
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+# Creating a function for IMDB Reviews
+imdb_reviews <- function(url) {
+  # Load the page content
+  page <- tryCatch(read_html(url), error = function(e) NULL)
+  if (is.null(page)) {
+    message("Failed to load page: ", url)
+    return(tibble())
+  }
+
+  # Extracting the selected title for the review
+  show_title <- page %>%
+    html_nodes("h1[data-testid='hero-title-block__title']") %>%
+    html_text(trim = TRUE)
+
+  # Checking if the title was extracted
+  if (length(show_title) == 0) {
+    message("Failed to extract show title for URL: ", url)
+    show_title <- NA  # Set to NA if the title is not found
+  }
+
+  # Extracting or scraping the review data
+  reviewers <- page %>% 
+    html_nodes("a.ipc-link.ipc-link--base") %>% 
+    html_text() %>% 
+    .[. != "Permalink"]
+
+  dates <- page %>% 
+    html_nodes("li.ipc-inline-list__item.review-date") %>% 
+    html_text()
+
+  rates <- page %>% 
+    html_nodes("span.ipc-rating-star--rating") %>% 
+    html_text() %>% 
+    as.numeric()
+
+  titles <- page %>% 
+    html_nodes("h3.ipc-title__text") %>% 
+    html_text()
+
+  helpful_votes <- page %>% 
+    html_nodes("span.ipc-voting__label__count.ipc-voting__label__count--up") %>% 
+    html_text() %>% 
+    as.numeric()
+
+  review_texts <- page %>% 
+    html_nodes("div.ipc-html-content-inner-div") %>% 
+    html_text()
+
+  # Adjust lengths by padding shorter vectors with NA
+  max_length <- max(length(reviewers), length(dates), length(rates), length(titles), length(helpful_votes), length(review_texts))
+
+  # Pad vectors with NA if they are shorter than max_length
+  reviewers <- c(reviewers, rep(NA, max_length - length(reviewers)))
+  dates <- c(dates, rep(NA, max_length - length(dates)))
+  rates <- c(rates, rep(NA, max_length - length(rates)))  # Fixed typo here
+  titles <- c(titles, rep(NA, max_length - length(titles)))
+  helpful_votes <- c(helpful_votes, rep(NA, max_length - length(helpful_votes)))
+  review_texts <- c(review_texts, rep(NA, max_length - length(review_texts)))
+
+  # Combine data into a tibble
+  tibble(
+    show_title = rep(show_title, max_length),  # Add the show title to each review
+    reviewer_name = reviewers,
+    review_date = dates,
+    rating = rates,
+    review_title = titles,
+    helpful_votes = helpful_votes,
+    review_text = review_texts
+  )
+}
+
+```
+list of the links of IMDB for scraping the review.
+```{r}
+links <- c("https://www.imdb.com/title/tt11126994/reviews/","https://www.imdb.com/title/tt2861424/reviews/","https://www.imdb.com/title/tt1355642/reviews/","https://www.imdb.com/title/tt1355642/reviews/","https://www.imdb.com/title/tt0944947/reviews/")
+```
+create a empty tibble for storing the data.
+```{r}
+all_reviews <- tibble()
+```
+create a loop function in orrder to scrape through links.
+```{r}
+for (link in links) {
+  reviews <- imdb_reviews(link)
+  
+  # Check if reviews are scraped successfully and limit to 20 reviews per link
+  if (nrow(reviews) > 0) {
+    reviews <- reviews %>% slice(1:20)  # Limit to the first 20 reviews per link
+    all_reviews <- bind_rows(all_reviews, reviews)
+  }
+}
+```
+print to check and save in csv file.
+```{r}
+print(all_reviews)
+
+write.csv(all_reviews, "IMDb_reviews.csv")
+
+```
+Load the necessary libraries for ggplot.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+tv_shows_by_year <- imdb_top_tv_shows %>%
+  group_by(Release_Year) %>%
+  summarise(Number_of_Shows = n())
+
+```
+plotting into a time serie.
+```{r}
+ggplot(tv_shows_by_year, aes(x = Release_Year, y = Number_of_Shows)) +
+  geom_line() +  # Add a line plot
+  geom_point() +  # Add points at each data point
+  labs(title = "Number of TV Shows Released by Year",
+       x = "Year",
+       y = "Number of TV Shows Released") +
+  theme_gray()
 ```
 
