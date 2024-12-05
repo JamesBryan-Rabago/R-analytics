@@ -1,0 +1,15 @@
+---
+title: "sentiment analysis"
+author: "lomibao and rabago"
+date: "2024-12-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+importing the csv.file.
+```{r}
+data <- read.csv("/cloud/project/sentiment analysis/tweetsDF.csv")
+```
+
