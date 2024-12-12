@@ -1,0 +1,245 @@
+---
+title: "sentiment analysis"
+author: "lomibao and rabago"
+date: "2024-12-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Trend analysis.
+
+installing the packages.
+```{r}
+library("dplyr")
+library("ggplot2")
+library("stringr")
+library("lubridate")
+```
+importing the csv.file.
+```{r}
+dataf <- read.csv("/cloud/project/sentiment analysis/tweetsDF.csv")
+```
+cleaning the data from the dataset.
+```{r}
+cleaned_tweetsDf <- dataf %>%
+  select(-c( statusSource, Created_At_Round)) %>%
+  mutate(created = as.POSIXct(created, format = "%Y-%m-%d %H:%M:%S"),
+         date = as.Date(created),
+         hour = hour(created),
+         day_of_week = weekdays(created)) %>%
+  distinct(text, .keep_all = TRUE)
+
+# Trend 1: Tweet Volume Over Time
+tweet_trend <- cleaned_tweetsDf %>%
+  group_by(date) %>%
+  summarise(tweet_count = n())
+
+#plotting the trend 
+ggplot(tweet_trend, aes(x = date, y = tweet_count)) +
+  geom_line(color = "green") +
+  geom_point() +
+  theme_gray() +
+  labs(title = "Number of Tweets Over Time",
+       x = "Date",
+       y = "Number of Tweets")
+```
+Trend volume but per hour. 
+```{r}
+hourly_trend <- cleaned_tweetsDf %>%
+  group_by(hour) %>%
+  summarise(tweet_count = n())
+
+ggplot(hourly_trend, aes(x = hour, y = tweet_count)) +
+  geom_line(color =  "skyblue") +
+  theme_gray() +
+  labs(title = "Hourly Tweet Patterns",
+       x = "Hour of Day",
+       y = "Number of Tweets")
+
+```
+Trend patterns in week;
+```{r}
+daily_trend <- cleaned_tweetsDf %>%
+  group_by(day_of_week) %>%
+  summarise(tweet_count = n()) %>%
+  mutate(day_of_week = factor(day_of_week,
+                              levels = c("Sunday", "Monday", "Tuesday", "Wednesday", 
+                                         "Thursday", "Friday", "Saturday")))
+
+ggplot(daily_trend, aes(x = day_of_week, y = tweet_count)) +
+  geom_bar(stat = "identity", fill = "red") +
+  theme_gray() +
+  labs(title = "Daily Tweet Patterns",
+       x = "Day of the Week",
+       y = "Number of Tweets")
+
+```
+Trends by source.
+```{r}
+source_trend <- cleaned_tweetsDf %>%
+  group_by(tweetSource) %>%
+  summarise(tweet_count = n())
+
+ggplot(source_trend, aes(x = reorder(tweetSource, -tweet_count), y = tweet_count, fill = tweetSource)) +
+  geom_bar(stat = "identity") +
+  theme_gray() +
+  labs(title = "Tweet Volume by Source",
+       x = "Source",
+       y = "Number of Tweets") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+tweet_trend
+hourly_trend
+daily_trend
+source_trend
+```
+1.tweet volume overtime 
+- Peaks in the graph show days with a lot of tweets, likely due to big events or trending topics.
+- Low points mean fewer tweets, suggesting less activity or interest.
+- Long-term changes, like an upward or downward trend, reflect increasing or decreasing interest over time.
+2. tweets pattern by hour. 
+-In the graph above it shows that the tweet reaches its peek when it when the time the person / user are most active .
+-The time with low activity were the user are less engaged to the social media. 
+3.Daily tweets pattern
+
+- Helps identify the most active days for tweeting. For example, weekends might see a spike in activity if users are more active on social media during their free time.
+Lower activity on specific weekdays could reflect work-related distractions or other commitments.
+Patterns can inform scheduling strategies for social media engagement.
+4.Trends by Source
+- Identifies the most commonly used platforms for tweeting. For example, a higher number of tweets from Android or iOS suggests mobile dominance.
+Variations in source usage might reflect demographic differences (e.g., tech preferences by region or age).
+Uncommon platforms could indicate niche users or automated posting tools.
+
+
+General insight :
+the data-set on tweets shows a comprehensive view of user behavior and engagement on Twitter. Peaks and patterns across time, days, and source highlight when and how users are most active. This knowledge can inform strategies for content creation, posting schedules, and audience targeting, helping to maximize impact and engagement on social media. Additionally, understanding platform preferences can aid in tailoring campaigns to different user demographics.
+
+
+Sentiment analysis.
+
+load the necessary package.
+```{r}
+library(dplyr)
+library(tidytext)
+library(ggplot2)
+library(textdata)
+```
+import the data set.
+```{r}
+dset <- read.csv("/cloud/project/sentiment analysis/tweetsDF.csv")
+```
+cleaning and plotting.
+```{r}
+tweets_df_cleaned <- dset %>%
+  select(created, text) %>%
+  distinct(text, .keep_all = TRUE) %>%
+  filter(!is.na(text))  
+
+```
+
+```{r}
+tweets_df_cleaned$created <- as.Date(tweets_df_cleaned$created)
+
+tweet_words <- tweets_df_cleaned %>%
+  unnest_tokens(word, text)
+```
+
+```{r}
+data("stop_words")
+tweet_words <- tweet_words %>%
+  anti_join(stop_words, by = "word")
+
+nrc_sentiments <- get_sentiments("nrc")
+tweet_sentiment <- tweet_words %>%
+  inner_join(nrc_sentiments, by = "word") %>%
+  count(created, sentiment, sort = TRUE)
+
+```
+
+```{r}
+sentiment_trends <- tweet_sentiment %>%
+  group_by(created, sentiment) %>%
+  summarise(daily_sentiment_count = sum(n)) %>%
+  ungroup()
+```
+
+```{r}
+
+ggplot(sentiment_trends, aes(x = created, y = daily_sentiment_count, color = sentiment)) +
+  geom_line() +
+  theme_gray() +
+  labs(title = "Sentiment Trends Over Time",
+       x = "Date",
+       y = "Sentiment Count",
+       color = "Sentiment") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+sentiment_distribution <- tweet_sentiment %>%
+  group_by(sentiment) %>%
+  summarise(sentiment_count = sum(n)) %>%
+  ungroup()
+
+```
+
+```{r}
+ggplot(sentiment_trends, aes(x = created, y = daily_sentiment_count, color = sentiment)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Sentiment Trends Over Time",
+       x = "Date",
+       y = "Sentiment Count",
+       color = "Sentiment") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+sentiment_distribution <- tweet_sentiment %>%
+  group_by(sentiment) %>%
+  summarise(sentiment_count = sum(n)) %>%
+  ungroup()
+
+ggplot(sentiment_distribution, aes(x = reorder(sentiment, sentiment_count), y = sentiment_count, fill = sentiment)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Overall Sentiment Distribution",
+       x = "Sentiment",
+       y = "Count") +
+  scale_fill_brewer(palette = "Set3")
+
+positive_tweets <- tweet_sentiment %>%
+  filter(sentiment == "positive") %>%
+  summarise(positive_tweet_count = sum(n))
+
+negative_tweets <- tweet_sentiment %>%
+  filter(sentiment == "negative") %>%
+  summarise(negative_tweet_count = sum(n))
+
+print(paste("Number of Positive Tweets: ", positive_tweets$positive_tweet_count))
+print(paste("Number of Negative Tweets: ", negative_tweets$negative_tweet_count))
+
+if (negative_tweets$negative_tweet_count > positive_tweets$positive_tweet_count) {
+  print("Warning: High number of negative sentiments. Immediate action may be required.")
+} else {
+  print("Brand is receiving positive feedback overall. Consider enhancing positive campaigns.")
+}
+
+```
+our insight : Social Media Sentiment Analysis for Brand Monitoring
+
+-Our objective is  to analyze tweets to understand public sentiment\ public opinion toward a brand, product, or event. By performing sentiment analysis.
+The graph or data shows that:
+
+Identify Sentiments:It determine the emotion of the user by the tweets if it is positive, negative, or neutral, and analyze emotions like anger, joy, trust, or fear.
+
+Track Trends: Monitor sentiment trends over time to detect shifts in customer satisfaction or reactions to events.
+
+Targeted Marketing: Engage with satisfied customers (positive sentiment) for campaigns and address dissatisfied customers (negative sentiment) to resolve issues.
+
+Product Improvement: Use feedback from sentiment analysis to identify areas for product or service enhancement.
+
+Crisis Management: Identify negative sentiment spikes early to mitigate potential PR crises.
+
+Brand Positioning: Use positive sentiment to reinforce the brand’s strengths in marketing and customer engagement.
