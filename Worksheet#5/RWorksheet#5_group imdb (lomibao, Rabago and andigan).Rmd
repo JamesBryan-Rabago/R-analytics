@@ -303,8 +303,7 @@ print(all_reviews)
 write.csv(all_reviews, "IMDb_reviews.csv")
 
 ```
-Load the necessary libraries for ggplot.
-
+group for release years and summarise the number of shows.
 ```{r}
 
 tv_shows_by_year <- imdb_top_tv_shows %>%
