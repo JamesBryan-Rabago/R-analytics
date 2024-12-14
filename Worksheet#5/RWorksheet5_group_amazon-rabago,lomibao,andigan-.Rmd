@@ -1,0 +1,867 @@
+---
+title: "RWorksheet#5_group(rabago,lomibao,andigan)"
+author: "Rabago,Lomibao,Andigan"
+date: "2024-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+load the primary packages
+```{r}
+library("polite")
+library("rvest")
+
+# Set polite scraping manners manually without creating a project
+session <- bow("https://www.amazon.com", user_agent = "Educational")
+session
+
+```
+
+
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+scrape_amazon_products <- function(base_url, category, num_products = 30) {
+  all_data <- data.frame()
+  page_number <- 1
+  
+  while (nrow(all_data) < num_products) {
+    # Construct the URL for the current page
+    url <- paste0(base_url, "&page=", page_number)
+    message("Scraping: ", url)
+    
+    page <- read_html(url)
+    
+    # Scrape product details
+    product_titles <- page %>%
+      html_nodes("span.a-text-normal") %>% 
+      html_text(trim = TRUE)
+    
+    # Remove irrelevant texts like "Check each product page for other buying options."
+    product_titles <- product_titles[product_titles != "Check each product page for other buying options."]
+    
+    # Price, Ratings, Reviews, Descriptions
+    price <- page %>% 
+      html_nodes('.a-price .a-offscreen') %>% 
+      html_text(trim = TRUE)
+    
+    ratings <- page %>% 
+      html_nodes('span.a-icon-alt') %>% 
+      html_text(trim = TRUE) %>%
+      str_extract("\\d\\.\\d") %>%  # Extract numeric ratings (e.g., "4.5")
+      as.numeric()
+    
+    reviews <- page %>%
+      html_nodes('.s-link-style .s-underline-text') %>% 
+      html_text(trim = TRUE)
+    
+    descriptions <- page %>%
+      html_nodes("span.a-text-normal") %>% 
+      html_text(trim = TRUE)
+    
+    # Remove irrelevant descriptions (same as titles)
+    descriptions <- descriptions[descriptions != "Check each product page for other buying options."]
+    
+    # Ensure vectors are of the same length by taking the minimum length
+    min_length <- min(c(length(product_titles), length(price), length(ratings), length(descriptions), length(reviews)))
+    
+    # Exit if no valid products are found on the page
+    if (min_length == 0) {
+      message("No valid products found on this page: ", url)
+      break
+    }  
+    
+    # Combine the data into a data frame
+    data <- data.frame(
+      ProductTitle = head(product_titles, min_length),
+      Price = head(price, min_length),
+      Category = rep(category, min_length),
+      Ratings = head(ratings, min_length),
+      Reviews = head(reviews, min_length),
+      Description = head(descriptions, min_length),
+      stringsAsFactors = FALSE
+    )
+    
+    # Append to all_data
+    all_data <- bind_rows(all_data, data)
+    
+    # Proceed to the next page
+    page_number <- page_number + 1
+  }
+  
+  # Limit the number of products to scrape
+  if (nrow(all_data) > 0) {
+    all_data <- head(all_data, num_products)
+    # Format product titles (e.g., "1. Product Name")
+    all_data$ProductTitle <- paste0(seq_len(nrow(all_data)), ". ", all_data$ProductTitle)
+  } else {
+    message("No products found across all pages.")
+  }
+  
+  return(all_data)
+}
+
+
+# Define URLs for each category
+headset_url <- "https://www.amazon.com/s?k=headset&crid=SHD7Y7OSWLUU&sprefix=headse%2Caps%2C449&ref=nb_sb_noss_2"
+laptop_url <- "https://www.amazon.com/s?k=laptop&i=amazon-devices&crid=1UM5SIUFBD55R&sprefix=laptop%2Camazon-devices%2C475&ref=nb_sb_noss_1"
+tablet_url <- "https://www.amazon.com/s?k=tablet&crid=12YPH2Q2MYWL0&sprefix=tablet%2Caps%2C365&ref=nb_sb_noss_1"
+camera_url <- "https://www.amazon.com/s?k=camera&crid=3N24SXKHII00F&sprefix=camera%2Caps%2C391&ref=nb_sb_noss_1"
+cellphone_url <- "https://www.amazon.com/s?k=cellphone&crid=1LWGT4U5DZ5SS&sprefix=cellphone%2Caps%2C418&ref=nb_sb_noss_1"
+
+# Scrape product data for each category
+headset_products <- scrape_amazon_products(headset_url, "Headset", 30)
+laptop_products <- scrape_amazon_products(laptop_url, "Laptop", 30)
+tablet_products <- scrape_amazon_products(tablet_url, "Tablet", 30)
+camera_products <- scrape_amazon_products(camera_url, "Camera", 30)
+cellphone_products <- scrape_amazon_products(cellphone_url, "Cellphone", 30)
+
+# Combine data from all categories
+all_products <- bind_rows(headset_products, laptop_products, tablet_products, camera_products, cellphone_products)
+
+# View or write the data to a CSV
+head(all_products)
+ write.csv(all_products, "Amazon_products.csv")
+
+```
+6. The data we have collected consists of 30 products from each of 6 categories, with details such as product name, price, category, ratings, reviews, and description for each product.
+
+7. The purpose of this data is for conducting market research.
+
+8. The graphs provide insights into trends in pricing, customer satisfaction, and product popularity across different categories, helping to identify competitive pricing strategies and top-performing products. They also highlight correlations between ratings and reviews, showing which products are both highly rated and widely purchased.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Load data
+all_products <- read.csv("Amazon_products.csv")
+
+# Clean up price data (remove $ and convert to numeric)
+all_products$Price <- as.numeric(gsub("[$,]", "", all_products$Price))
+
+# Filter out rows where Price, Ratings, or Reviews are missing or invalid
+all_products <- all_products %>%
+  filter(!is.na(Price), !is.na(Ratings), !is.na(Reviews), 
+         Price > 0, Ratings > 0)  # Ensure positive values for Price and Ratings
+
+# Graph 1: Price Distribution
+ggplot(all_products, aes(x = Price)) +
+  geom_histogram(binwidth = 50, fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Product Prices", x = "Price ($)", y = "Count") +
+  theme_minimal()
+
+# Graph 2: Average Ratings by Category
+avg_ratings <- all_products %>%
+  group_by(Category) %>%
+  summarize(AverageRating = mean(Ratings, na.rm = TRUE))
+
+ggplot(avg_ratings, aes(x = Category, y = AverageRating, fill = Category)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(title = "Average Ratings by Category", x = "Category", y = "Average Rating") +
+  theme_minimal()
+
+# Graph 3: Total Number of Reviews by Category
+total_reviews <- all_products %>%
+  group_by(Category) %>%
+  summarize(TotalReviews = sum(as.numeric(gsub("[^0-9]", "", Reviews)), na.rm = TRUE))
+
+ggplot(total_reviews, aes(x = Category, y = TotalReviews, fill = Category)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(title = "Total Number of Reviews by Category", x = "Category", y = "Total Reviews") +
+  theme_minimal()
+
+# Graph 4: Correlation Between Ratings and Reviews
+ggplot(all_products, aes(x = Ratings, y = as.numeric(gsub("[^0-9]", "", Reviews)))) +
+  geom_point(alpha = 0.6, color = "purple") +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed") +  # Add regression line
+  labs(title = "Correlation Between Ratings and Reviews", x = "Ratings", y = "Number of Reviews") +
+  theme_gray()
+
+```
+
+9.  
+```{r}
+library(ggplot2)
+
+ggplot(all_products, aes(x = Price, y = Ratings, color = Category)) +
+  geom_point() +
+  facet_wrap(~ Category, scales = "free") +
+  labs(title = "Ratings vs Price for Each Category",
+       x = "Price ($)",
+       y = "Ratings") +
+  theme_gray() +
+  theme(legend.position = "none")
+
+```
+
+10. Ranking by ratings organizes products from the highest to the lowest-rated, highlighting the most positively reviewed items. Ranking by price can be done in either ascending order (from cheapest to most expensive) or descending order (from most expensive to cheapest), allowing users to choose products according to their budget.
+```{r}
+
+all_products <- read.csv("Amazon_products.csv")
+
+
+str(all_products)
+
+```
+```{r}
+# Load the CSV file containing the products
+all_products <- read.csv("Amazon_products.csv")
+
+# Ensure the Ratings column is numeric for sorting
+all_products$Ratings <- as.numeric(all_products$Ratings)
+
+# Check the structure to make sure Ratings are correctly formatted
+str(all_products)
+
+library(dplyr)
+
+# Rank products by Ratings in descending order
+ranked_by_ratings <- all_products %>%
+  arrange(desc(Ratings))
+
+# View the top-ranked products based on ratings
+head(ranked_by_ratings, 150)  # Display the top 10 highest-rated products
+
+
+```
+
+```{r}
+# Load the CSV file containing the products
+all_products <- read.csv("Amazon_products.csv")
+
+# Clean and convert the Price column to numeric (if it includes "$" signs)
+all_products$Price <- as.numeric(gsub("\\$", "", all_products$Price))
+
+# Check the structure to ensure Price is correctly formatted
+str(all_products)
+
+library(dplyr)
+
+# Rank products by Price in ascending order (cheapest first)
+ranked_by_price_ascending <- all_products %>%
+  arrange(Price)
+
+# Alternatively, rank products by Price in descending order (most expensive first)
+ranked_by_price_descending <- all_products %>%
+  arrange(desc(Price))
+
+# View the top-ranked products based on price (descending order)
+head(ranked_by_price_descending, 150)  # Display top 10 most expensive products
+
+```
+
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+product_links <- c(
+  "https://www.amazon.com/Microphone-Cancelling-Over-Ear-Headphones-Computer/dp/B0C1GTXY5S/ref=sr_1_1",
+  "https://www.amazon.com/OneOdio-PRO1030-DJ-Headphone-Black/dp/B01N6ZJH96/ref=sr_1_2",
+  "https://www.amazon.com/JBL-Quantum-400-Headphones-Game-Chat/dp/B084CZDX61/ref=sr_1_3",
+  "https://www.amazon.com/Razer-BlackShark-V2-Gaming-Headset/dp/B09PZG4R17/ref=sr_1_4",
+  "https://www.amazon.com/Turtle-Gaming-Headset-PlayStation-Nintendo-Console/dp/B00YXO5U40/ref=sr_1_5",
+  "https://www.amazon.com/CORSAIR-SURROUND-Multiplatform-Gaming-Headset/dp/B09YHQ3Y61/ref=sr_1_6",
+  "https://www.amazon.com/Fachixy-Gaming-Headset-Canceling-Microphone/dp/B09C5MDY2Y/ref=sr_1_7",
+  "https://www.amazon.com/BENGOO-G9000-Controller-Cancelling-Headphones/dp/B01H6GUCCQ/ref=sr_1_8",
+  "https://www.amazon.com/Stealth-Wireless-Multiplatform-Amplified-Headset-Nintendo/dp/B0CYWFH5Y9/ref=sr_1_9",
+  "https://www.amazon.com/Logitech-Wireless-Lightspeed-Headset-Headphone/dp/B081PP4CB6/ref=sr_1_10"
+)
+
+product_names <- c(
+  "Microphone Cancelling Over-Ear Headphones",
+  "OneOdio PRO1030 DJ Headphone",
+  "JBL Quantum 400 Headphones Game Chat",
+  "Razer BlackShark V2 Gaming Headset",
+  "Turtle Gaming Headset PlayStation Nintendo Console",
+  "CORSAIR SURROUND Multiplatform Gaming Headset",
+  "Fachixy Gaming Headset Canceling Microphone",
+  "BENGOO G9000 Controller Cancelling Headphones",
+  "Stealth Wireless Multiplatform Amplified Headset",
+  "Logitech Wireless Lightspeed Headset"
+)
+
+category <- "Headset"
+
+all_reviews <- data.frame()
+
+for (i in seq_along(product_links)) {
+  # Get the product link and name
+  url <- product_links[i]
+  product_name <- product_names[i]
+  
+  try({
+    webpage <- read_html(url)
+    
+    reviews <- webpage %>%
+      html_nodes(".review")
+    
+    reviewer_names <- reviews %>%
+      html_nodes(".a-profile-name") %>%
+      html_text(trim = TRUE)
+    
+    review_dates <- reviews %>%
+      html_nodes(".review-date") %>%
+      html_text(trim = TRUE)
+    
+    review_titles <- reviews %>%
+      html_nodes(".review-title span") %>%
+      html_text(trim = TRUE)
+     review_titles <- review_titles[review_titles != "5.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "4.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "1.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "3.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "2.0 out of 5 stars"]
+    
+    review_comments <- reviews %>%
+      html_nodes(".review-text-content span") %>%
+      html_text(trim = TRUE)
+    
+    verified_purchases <- reviews %>%
+      html_nodes(".review-vp-label") %>%
+      html_text(trim = TRUE)
+    
+    star_ratings <- reviews %>%
+      html_nodes(".a-icon-alt") %>%
+      html_text(trim = TRUE) %>%
+      str_extract("\\d\\.\\d") %>%  # Extract the numeric rating
+      as.numeric()
+    
+    max_reviews <- min(20, length(reviewer_names))
+    reviewer_names <- reviewer_names[1:max_reviews]
+    review_dates <- review_dates[1:max_reviews]
+    review_titles <- review_titles[1:max_reviews]
+    review_comments <- review_comments[1:max_reviews]
+    verified_purchases <- verified_purchases[1:max_reviews]
+    star_ratings <- star_ratings[1:max_reviews]
+    
+    review_data <- data.frame(
+      Category = rep(category, max_reviews),
+      ProductName = rep(product_name, max_reviews),
+      Reviewer = reviewer_names,
+      Date = review_dates,
+      Title = review_titles,
+      Comment = review_comments,
+      StarRating = star_ratings,
+      VerifiedPurchase = verified_purchases,
+      stringsAsFactors = FALSE
+    )
+    
+    all_reviews <- bind_rows(all_reviews, review_data)
+  }, silent = TRUE)
+}
+
+print(all_reviews)
+
+write.csv(all_reviews, "Headset_reviews.csv")
+```
+
+
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+product_links <- c(
+  "https://www.amazon.com/Amazon-powerful-octa-core-processor-lockscreen/dp/B0B2SFTGQ6/ref=sr_1_1_ffob_sspa",
+  "https://www.amazon.com/Certified-Refurbished-tablet-latest-release/dp/B08F5LRHB4/ref=sr_1_2_ffob_sspa",
+  "https://www.amazon.com/HP-Stream-BrightView-N4120-Graphics/dp/B0CZKPF2QH/ref=sr_1_3",
+  "https://www.amazon.com/A315-24P-R7VH-Display-Quad-Core-Processor-Graphics/dp/B0BS4BP8FB/ref=sr_1_4",
+  "https://www.amazon.com/ASUS-Chromebook-Processor-Transparent-CX1400CKA-AS88F/dp/B0CRTJ1LZ4/ref=sr_1_5",
+  "https://www.amazon.com/ASUS-Chromebook-Processor-Transparent-CX1500CKA-AS84F/dp/B0CRD43GY6/ref=sr_1_6",
+  "https://www.amazon.com/Fire-7-Tablet/dp/B096WKKK2K/ref=sr_1_7_ffob_sspa",
+  
+  "https://www.amazon.com/Lenovo-Business-Dual-Core-Processor-Bluetooth/dp/B0DLGXYX8Z/ref=sr_1_8",
+  "https://www.amazon.com/Naclud-Computers-Quad-Core-Portable-Notebook/dp/B0DK5R79LM/ref=sr_1_9",
+  "https://www.amazon.com/Naclud-Laptops-Computer-Quad-Core-Computers/dp/B0DK5NNMHG/ref=sr_1_10"
+)
+
+product_names <- c(
+  "Amazon Fire Max 11 tablet (newest model) vivid 11” display",
+  "Certified Refurbished Fire HD 10 tablet",
+  "HP Stream 14 HD BrightView Laptop, Intel Celeron N4120, 16GB RAM, 288GB Storage (128GB eMMC + 160GB Docking Station Set)",
+  "Acer Aspire 3 A315-24P-R7VH Slim Laptop",
+  "ASUS Chromebook CX1, 14 FHD",
+  "ASUS Chromebook CX1",
+  "Amazon Fire 7 tablet (newest model) 7",
+  "Lenovo V15 Newest 15.6",
+  "Windows 11 Laptop Computers",
+  "15.6 Inch Laptops"
+)
+
+category <- "Laptop"
+
+all_reviews <- data.frame()
+
+for (i in seq_along(product_links)) {
+  
+  url <- product_links[i]
+  product_name <- product_names[i]
+  
+  try({
+    webpage <- read_html(url)
+    
+    reviews <- webpage %>%
+      html_nodes(".review")
+    
+    reviewer_names <- reviews %>%
+      html_nodes(".a-profile-name") %>%
+      html_text(trim = TRUE)
+    
+    review_dates <- reviews %>%
+      html_nodes(".review-date") %>%
+      html_text(trim = TRUE)
+    
+   review_titles <- reviews %>%
+      html_nodes(".review-title span") %>%
+      html_text(trim = TRUE)
+     review_titles <- review_titles[review_titles != "5.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "4.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "1.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "3.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "2.0 out of 5 stars"]
+    
+    
+    review_comments <- reviews %>%
+      html_nodes(".review-text-content span") %>%
+      html_text(trim = TRUE)
+    
+    verified_purchases <- reviews %>%
+      html_nodes(".review-vp-label") %>%
+      html_text(trim = TRUE)
+    
+    star_ratings <- reviews %>%
+      html_nodes(".a-icon-alt") %>%
+      html_text(trim = TRUE) %>%
+      str_extract("\\d\\.\\d") %>%  # Extract the numeric rating
+      as.numeric()
+    
+    max_reviews <- min(20, length(reviewer_names))
+    reviewer_names <- reviewer_names[1:max_reviews]
+    review_dates <- review_dates[1:max_reviews]
+    review_titles <- review_titles[1:max_reviews]
+    review_comments <- review_comments[1:max_reviews]
+    verified_purchases <- verified_purchases[1:max_reviews]
+    star_ratings <- star_ratings[1:max_reviews]
+    
+    review_data <- data.frame(
+      Category = rep(category, max_reviews),
+      ProductName = rep(product_name, max_reviews),
+      Reviewer = reviewer_names,
+      Date = review_dates,
+      Title = review_titles,
+      Comment = review_comments,
+      StarRating = star_ratings,
+      VerifiedPurchase = verified_purchases,
+      stringsAsFactors = FALSE
+    )
+    
+    all_reviews <- bind_rows(all_reviews, review_data)
+  }, silent = TRUE)
+}
+
+print(all_reviews)
+
+write.csv(all_reviews, "Laptop_reviews.csv")
+
+
+```
+
+
+
+
+```{r}
+# Load necessary libraries
+library(rvest)
+library(dplyr)
+library(stringr)
+
+# Define product links and product names
+product_links <- c(
+  "https://www.amazon.com/Amazon_Fire_HD_10/dp/B0BHZT5S12/ref=sr_1_1",
+  
+  "https://www.amazon.com/Alphawolf-Android-Processor-Widevine-L1/dp/B0DKB9CYM1/ref=sr_1_2",
+  
+  "https://www.amazon.com/SAMSUNG-Android-Speakers-Upgraded-Graphite/dp/B0CLF3VPMV/ref=sr_1_3",
+  
+  "https://www.amazon.com/Android-Octa-core-Processor-Touchscreen-2024/dp/B0DBHM9L4B/ref=sr_1_4",
+  
+  
+  "https://www.amazon.com/COOPERS-Computer-Processor-1280x800-Bluetooth/dp/B0C77HFG3F/ref=sr_1_5",
+  
+  
+  
+  "https://www.amazon.com/Tablets-Android-Expansion-Computer-Certified/dp/B0CKXDH8R6/ref=sr_1_6",
+  
+  
+  "https://www.amazon.com/Fire-HD-8-Kids-Tablet-Grape-32GB/dp/B0D1DV6G2N/ref=sr_1_7",
+  
+  
+  "https://www.amazon.com/Android-Quad-Core-Processor-1280x800-Bluetooth/dp/B0CRL17YGJ/ref=sr_1_8",
+  
+  
+  "https://www.amazon.com/Apple-iPad-10-2-Inch-Wi-Fi-32GB/dp/B08264XHCZ/ref=sr_1_9",
+  
+  "https://www.amazon.com/SAMSUNG-Android-Included-Expandable-Exclusive/dp/B0CWS8MNW1/ref=sr_1_10"
+)
+
+product_names <- c(
+  "Amazon Fire HD 10 tablet (newest model) built for relaxation, 10.1 vibrant Full HD screen, octa-core processor, 3 GB RAM, 32 GB, Black",
+  
+  "Alphawolf Android Tablet 10 inch Tablets, FHD 1920 * 1200 Display, 16GB RAM 128GB ROM Octa Core Processor, Widevine L1, 2.4G/5G WiFi Tablet Android 14",
+  
+  "Samsung Galaxy Tab A9+ Tablet 11” 64GB Android Tablet, Big Screen, Quad Speakers, Upgraded Chipset, Multi Window Display, Slim, Light, Durable Design, US Version, 2024, Graphite",
+  
+  "Tablet,10.1 Android Tablet with Octa-core Processor 10GB RAM 128GB ROM HD IPS Touchscreen 8H Battery, Wi-Fi 6, BT 5.0, Dual Camera, Google Tablets 2024",
+  
+  "COOPERS Tablet 10 inch, Android 14 Tablet, 32GB ROM 1TB Expand Computer Tablets, Quad Core Processor 6000mAh Battery, 1280x800 IPS Touch Screen, 2+8MP Dual HD Camera, Bluetooth WiFi Tablet PC",
+  
+  "YQSAVIOR Tablet, Android 12 10 Tablet, 6GB RAM 128GB ROM 1TB Expansion with Case, Support 5G WiFi Wi-fi 6, IPS Touch Screen, Dual Cameras, BT5.0, 1PCS (Rose Gold)",
+  
+
+  
+   "New Amazon Fire HD 8 Kids tablet, ages 3-7 | 3GB memory, bright 8 HD screen. Includes ad-free and exclusive content, parental controls and 13-hr battery, 32GB, Grape, (2024 release)",
+  
+  
+  "10 inch Tablet Android 13 Tablets, 6GB RAM 64GB ROM 512GB Expand, Quad-Core Processor, 1280x800 IPS HD Touch Screen, GPS, WiFi, Dual Camera, Bluetooth, 6000mAh Battery (Gray)",
+  
+    "Apple iPad (10.2-Inch, Wi-Fi, 32GB) - Space Gray (Renewed)",
+  
+  "Samsung Galaxy Tab S6 Lite 10.4' 64GB WiFi Android Tablet, S Pen Included, Gaming Ready, Long Battery Life, Slim Metal Design, Expandable Storage, US Version, Oxford Gray, Amazon Exclusive"
+)
+
+category <- "Tablet"
+
+# Initialize an empty dataframe
+all_reviews <- data.frame()
+
+# Loop through each product
+for (i in seq_along(product_links)) {
+  # Get the product link and name
+  url <- product_links[i]
+  product_name <- product_names[i]
+  
+  # Try scraping reviews
+  try({
+    webpage <- read_html(url)
+    
+    # Extract review sections
+    reviews <- webpage %>%
+      html_nodes(".review")
+    
+    # Extract reviewer names
+    reviewer_names <- reviews %>%
+      html_nodes(".a-profile-name") %>%
+      html_text(trim = TRUE)
+    
+    # Extract review dates
+    review_dates <- reviews %>%
+      html_nodes(".review-date") %>%
+      html_text(trim = TRUE)
+    
+    # Extract review titles
+    review_titles <- reviews %>%
+      html_nodes(".review-title span") %>%
+      html_text(trim = TRUE)
+     review_titles <- review_titles[review_titles != "5.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "4.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "1.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "3.0 out of 5 stars"]
+    review_titles <- review_titles[review_titles != "2.0 out of 5 stars"]
+    
+    # Extract review comments
+    review_comments <- reviews %>%
+      html_nodes(".review-text-content span") %>%
+      html_text(trim = TRUE)
+    
+    # Extract verified purchase labels
+    verified_purchases <- reviews %>%
+      html_nodes(".review-vp-label") %>%
+      html_text(trim = TRUE)
+    
+    # Extract star ratings
+    star_ratings <- reviews %>%
+      html_nodes(".a-icon-alt") %>%
+      html_text(trim = TRUE) %>%
+      str_extract("\\d\\.\\d") %>%  # Extract the numeric rating
+      as.numeric()
+    
+    # Limit to the first 20 reviews
+    max_reviews <- min(20, length(reviewer_names))
+    reviewer_names <- reviewer_names[1:max_reviews]
+    review_dates <- review_dates[1:max_reviews]
+    review_titles <- review_titles[1:max_reviews]
+    review_comments <- review_comments[1:max_reviews]
+    verified_purchases <- verified_purchases[1:max_reviews]
+    star_ratings <- star_ratings[1:max_reviews]
+    
+    # Create a dataframe for this product
+    review_data <- data.frame(
+      Category = rep(category, max_reviews),
+      ProductName = rep(product_name, max_reviews),
+      Reviewer = reviewer_names,
+      Date = review_dates,
+      Title = review_titles,
+      Comment = review_comments,
+      StarRating = star_ratings,
+      VerifiedPurchase = verified_purchases,
+      stringsAsFactors = FALSE
+    )
+    
+    # Append to the main dataframe
+    all_reviews <- bind_rows(all_reviews, review_data)
+  }, silent = TRUE)
+}
+
+print(all_reviews)
+
+write.csv(all_reviews, "Tablet_reviews.csv")
+
+```
+
+
+
+
+
+
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+product_links <- c(
+  "https://www.amazon.com/Ring-generation-release-Two-Way-Charcoal/dp/B0CRMD8WWL/ref=sr_1_1",
+  "https://www.amazon.com/Blink-Mini-2-Camera-Black/dp/B0BWX39R5W/ref=sr_1_2",
+  "https://www.amazon.com/Canon-Rebel-T7-18-55mm-II/dp/B07C2Z21X5/ref=sr_1_3",
+  "https://www.amazon.com/Saneen-Digital-Cameras-Photography-Vlogging/dp/B0CFZRPQMZ/ref=sr_1_4",
+  "https://www.amazon.com/Upgrade-Digital-Batteries-Lanyard-Girls%EF%BC%88Black%EF%BC%89/dp/B0DJTG97HM/ref=sr_1_5",
+  "https://www.amazon.com/Gavonde-Digital-Photography-Vlogging-Batteries/dp/B0D3H36K64/ref=sr_1_6",
+  "https://www.amazon.com/Ring-Floodlight-Cam-Wired-Plus/dp/B08F6GPQQ7/ref=sr_1_7",
+  "https://www.amazon.com/Photography-Autofocus-Anti-Shake-Vlogging-180%C2%B0Flip/dp/B0DH28GGNZ/ref=sr_1_8",
+  "https://www.amazon.com/KODAK-PIXPRO-AZ405-BK-Digital-Optical/dp/B0BLLCJ963/ref=sr_1_9",
+ "https://www.amazon.com/QUOLODOO-Digital-Batteries-Portable-Rechargeable/dp/B0DHD5KWD2/ref=sr_1_10"
+  )
+
+product_names <- c(
+  "Ring Indoor Cam (2nd Gen) | latest generation, 2023 release | 1080p HD Video & Color Night Vision, Two-Way Talk, and Manual Audio & Video Privacy Cover | Charcoal",
+  
+  "Blink Mini 2 [Newest Model] - Home Security & Pet Camera(s) with HD video, color night view, motion detection, two-way audio, and built-in spotlight - 1 camera (Black)",
+  "Canon EOS Rebel T7 DSLR Camera with 18-55mm Lens | Built-in Wi-Fi | 24.1 MP CMOS Sensor | DIGIC 4+ Image Processor and Full HD Videos",
+  "Saneen Digital Camera, 4k Cameras for Photography & Video, 64MP WiFi Touch Screen Vlogging Camera for YouTube with Flash, 32GB SD Card, Lens Hood, 3000mAH Battery, Front and Rear Cameras - Black",
+  "Upgrade Digital Camera, 56MP FHD 1080P Camera for Kids with 16x Zoom Anti Shake, Kid Camera with 32GB TF Card, Two Batteries, Lanyard, Compact Small Camera for Kids Boys Girls（Black)",
+  "Digital Camera for Photography, 4K Vlogging Camera for YouTube 3 180° Flip Screen 18X Digital Zoom Compact Retro Camera with 32GB TF Card & 2 Batteries, Black",
+  "Ring Floodlight Cam Wired Plus with motion-activated 1080p HD video, White (2021 release)",
+  "4K Digital Camera for Photography and Video, Autofocus Anti-Shake 48MP Vlogging Camera for YouTube, 3'' 180°Flip Screen Camera with Flash 16X Zoom, Digital Camera with 32GB Card Battery Charger Black",
+  "KODAK PIXPRO AZ405-BK 20MP Digital Camera 40X Optical Zoom 24mm Wide Angle Lens Optical Image Stabilization 1080P Full HD Video 3 LCD Vlogging Camera (Black)",
+  "Digital Camera, 4K 64MP Dual Screens Camera, 18X Zoom, Point and Shoot Digital Camera with 64GB TF Card & 2 Batteries, Portable Rechargeable Small Camera for Kids Teens Adult, Black")
+  
+  
+
+category <- "Camera"
+
+all_reviews <- data.frame()
+
+for (i in seq_along(product_links)) {
+  # Get the product link and name
+  url <- product_links[i]
+  product_name <- product_names[i]
+  
+  try({
+    webpage <- read_html(url)
+    
+    reviews <- webpage %>%
+      html_nodes(".review")
+    
+    reviewer_names <- reviews %>%
+      html_nodes(".a-profile-name") %>%
+      html_text(trim = TRUE)
+    
+    review_dates <- reviews %>%
+      html_nodes(".review-date") %>%
+      html_text(trim = TRUE)
+    
+    review_titles <- reviews %>%
+      html_nodes(".review-title span") %>%
+      html_text(trim = TRUE)
+    
+    review_comments <- reviews %>%
+      html_nodes(".review-text-content span") %>%
+      html_text(trim = TRUE)
+    
+    verified_purchases <- reviews %>%
+      html_nodes(".review-vp-label") %>%
+      html_text(trim = TRUE)
+    
+    star_ratings <- reviews %>%
+      html_nodes(".a-icon-alt") %>%
+      html_text(trim = TRUE) %>%
+      str_extract("\\d\\.\\d") %>%  # Extract the numeric rating
+      as.numeric()
+    
+    max_reviews <- min(20, length(reviewer_names))
+    reviewer_names <- reviewer_names[1:max_reviews]
+    review_dates <- review_dates[1:max_reviews]
+    review_titles <- review_titles[1:max_reviews]
+    review_comments <- review_comments[1:max_reviews]
+    verified_purchases <- verified_purchases[1:max_reviews]
+    star_ratings <- star_ratings[1:max_reviews]
+    
+    review_data <- data.frame(
+      Category = rep(category, max_reviews),
+      ProductName = rep(product_name, max_reviews),
+      Reviewer = reviewer_names,
+      Date = review_dates,
+      Title = review_titles,
+      Comment = review_comments,
+      StarRating = star_ratings,
+      VerifiedPurchase = verified_purchases,
+      stringsAsFactors = FALSE
+    )
+    
+    all_reviews <- bind_rows(all_reviews, review_data)
+  }, silent = TRUE)
+}
+
+print(all_reviews)
+
+write.csv(all_reviews, "Camera_reviews.csv")
+
+```
+
+
+```{r}
+library(rvest)
+library(dplyr)
+library(stringr)
+
+# Define the list of product URLs and corresponding names
+product_links <- c(
+  "https://www.amazon.com/NUU-T-Mobile-Teenagers-Octa-Core-Unlocked/dp/B0DGP9TS6Y/ref=sr_1_2",
+  
+  "https://www.amazon.com/NUU-A15-Compatible-Teenagers-White/dp/B0CHDQFZW8/ref=sr_1_2",
+  
+  "https://www.amazon.com/Samsung-SM-155M-DSN-Unlocked-International/dp/B0CSB22F9C/ref=sr_1_3",
+  
+  
+  "https://www.amazon.com/Moto-Unlocked-128GB-Camera-Green/dp/B0CWHXVLXG/ref=sr_1_4",
+  
+  "https://www.amazon.com/Moto-Play-Unlocked-Camera-Sapphire/dp/B0CP6DDN1H/ref=sr_1_5",
+  
+  "https://www.amazon.com/SAMSUNG-Smartphone-Unlocked-Android-Titanium/dp/B0CMDL3H3P/ref=sr_1_6"
+  
+  ,
+  "https://www.amazon.com/NUU-Unlocked-T-Mobile-Worldwide-International/dp/B0CH7Q92J8/ref=sr_1_7",
+  
+  
+  "https://www.amazon.com/Motorola-Stylus-Unlocked-MPCamera-Cosmic/dp/B0C2S6TKTL/ref=sr_1_8",
+  
+  
+  "https://www.amazon.com/SAMSUNG-A35-Unlocked-Smartphone-Expandable/dp/B0CV4NH5T9/ref=sr_1_9"
+  ,
+  "https://www.amazon.com/Samsung-SM-155M-DSN-Unlocked-International/dp/B0CSB14R7J/ref=sr_1_10"
+)
+
+product_names  <- c(
+  "NUU N10 Basic Cell Phone for T-Mobile, Mint, Metro, Qlink, Tello and More 4GB/128GB, Perfect for Teenagers, Dual SIM 4G, Octa-Core 6.6 90Hz HD+, Unlocked Phones Android Phone 14, US Warranty (White)",
+  
+  "NUU A15 Cell Phone 4GB + 128GB, Compatible with Mint, Metro, T-Mobile, Qlink and More, Perfect for Teenagers, Dual SIM 4G, Octa-Core Helio G36 2.2GHz 6.5 HD+, Android 13, White, US Warranty",
+  
+  
+  "Samsung Galaxy A15 (SM-155M/DSN), 128GB 6GB RAM, Dual SIM, Factory Unlocked GSM, International Version (Wall Charger Bundle) (Light Blue)",
+  
+  "Moto G 5G | 2024 | Unlocked | Made for US 4/128GB | 50MP Camera | Sage Green",
+  
+  "Moto G Play | 2024 | Unlocked | Made for US 4/64GB | 50MP Camera | Sapphire Blue",
+  
+  "Samsung Galaxy S24 Ultra Cell Phone, 256GB AI Smartphone, Unlocked Android, 200MP, 100x Zoom Cameras, Fast Processor, Long Battery Life, Edge-to-Edge Display, S Pen, US Version, 2024, Titanium Gray"
+  ,
+  "NUU A23Plus Basic Cell Phone for AT&T, T-Mobile, Cricket, Mint Mobile, Metro, 64G/3GB 6.3 4G LTE, Q Link, Hello Mobile Dual SIM, Black, 365 Days US Warranty with Detachable & Replaceable Battery",
+  
+  
+  "Motorola Moto G Stylus 5G | 2023 | Unlocked | Made for US 6/256GB | 50 MPCamera | Cosmic Black, 162.83x73.77x9.29",
+  
+  
+  "SAMSUNG Galaxy A35 5G A Series Cell Phone, 128GB Unlocked Android Smartphone, AMOLED Display, Advanced Triple Camera System, Expandable Storage, Rugged Design, US Version, 2024, Awesome Lilac",
+  "Samsung Galaxy A15 A155M 128GB Dual-SIM GSM Unlocked Android Smartphone (Latin America Version) - Blue Black"
+)
+
+category <- "Cellphone"
+
+# Create an empty dataframe to store all reviews
+all_reviews <- data.frame()
+
+# Loop over each product URL
+for (i in seq_along(product_links)) {
+  # Get the product link and name
+  url <- product_links[i]
+  product_name <- product_names[i]
+  
+  try({
+    webpage <- read_html(url)
+    
+    reviews <- webpage %>%
+      html_nodes(".review")
+    
+    reviewer_names <- reviews %>%
+      html_nodes(".a-profile-name") %>%
+      html_text(trim = TRUE)
+    
+    review_dates <- reviews %>%
+      html_nodes(".review-date") %>%
+      html_text(trim = TRUE)
+    
+    review_titles <- reviews %>%
+      html_nodes(".review-title span") %>%
+      html_text(trim = TRUE)
+    
+    review_comments <- reviews %>%
+      html_nodes(".review-text-content span") %>%
+      html_text(trim = TRUE)
+    
+    verified_purchases <- reviews %>%
+      html_nodes(".review-vp-label") %>%
+      html_text(trim = TRUE)
+    
+    star_ratings <- reviews %>%
+      html_nodes(".a-icon-alt") %>%
+      html_text(trim = TRUE) %>%
+      str_extract("\\d\\.\\d") %>%  # Extract the numeric rating
+      as.numeric()
+    
+    max_reviews <- min(20, length(reviewer_names))
+    reviewer_names <- reviewer_names[1:max_reviews]
+    review_dates <- review_dates[1:max_reviews]
+    review_titles <- review_titles[1:max_reviews]
+    review_comments <- review_comments[1:max_reviews]
+    verified_purchases <- verified_purchases[1:max_reviews]
+    star_ratings <- star_ratings[1:max_reviews]
+    
+    review_data <- data.frame(
+      Category = rep(category, max_reviews),
+      ProductName = rep(product_name, max_reviews),
+      Reviewer = reviewer_names,
+      Date = review_dates,
+      Title = review_titles,
+      Comment = review_comments,
+      StarRating = star_ratings,
+      VerifiedPurchase = verified_purchases,
+      stringsAsFactors = FALSE
+    )
+    
+    all_reviews <- bind_rows(all_reviews, review_data)
+  }, silent = TRUE)
+}
+ print(all_reviews)
+
+write.csv(all_reviews, "Cellphone_reviews.csv")
+
+```
+
+
+
